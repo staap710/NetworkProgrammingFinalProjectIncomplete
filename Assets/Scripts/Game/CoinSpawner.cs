@@ -1,13 +1,8 @@
-﻿using UnityEngine;
+using UnityEngine;
 using CoinRush.Networking;
 
 namespace CoinRush.Game
 {
-    /// <summary>
-    /// Placed in GameScene. Reads PendingStartMessage from GameManager and
-    /// instantiates a Coin prefab at each position so both machines start with
-    /// an identical set of coins (host generated the positions; client received them).
-    /// </summary>
     public class CoinSpawner : MonoBehaviour
     {
         public GameObject coinPrefab;

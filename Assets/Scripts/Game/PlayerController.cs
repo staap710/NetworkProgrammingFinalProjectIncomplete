@@ -1,23 +1,13 @@
-﻿using UnityEngine;
+using UnityEngine;
 using CoinRush.Networking;
 
 namespace CoinRush.Game
 {
-    /// <summary>
-    /// Attached to the Player prefab.
-    ///
-    /// isLocalPlayer = true  -> reads keyboard input, sends INPUT messages.
-    /// isLocalPlayer = false -> receives INPUT messages, interpolates position.
-    ///
-    /// Controls:
-    ///   Local player 1 (host)  : A/D or Left/Right to move, W/Space/Up to jump.
-    ///   Local player 2 (client): same keys (both players run on separate machines).
-    /// </summary>
     [RequireComponent(typeof(Rigidbody2D))]
     public class PlayerController : MonoBehaviour
     {
         [Header("Identity")]
-        public int  playerId;      // 1 = host player, 2 = client player
+        public int  playerId;
         public bool isLocalPlayer;
 
         [Header("Movement")]
@@ -34,24 +24,19 @@ namespace CoinRush.Game
         public Color p1Color = new Color(0.2f, 0.5f, 1f);
         public Color p2Color = new Color(1f, 0.3f, 0.3f);
 
-        // Internal state
         private Rigidbody2D _rb;
         private bool  _isGrounded;
         private int   _inputSeq;
         private float _inputTimer;
         private const float INPUT_RATE = 0.05f; // 20 Hz
 
-        // Remote interpolation
         private Vector2 _remoteTargetPos;
         private bool    _hasRemoteData;
         private int     _lastRemoteSeq = -1;
 
-        // Power-up state
         private float _speedMultiplier = 1f;
         private float _stunTimer;
         public bool IsStunned => _stunTimer > 0f;
-
-        // Lifecycle
 
         void Awake()
         {
@@ -60,7 +45,6 @@ namespace CoinRush.Game
 
         void Start()
         {
-            // Colour-code the sprite
             if (spriteRenderer != null)
                 spriteRenderer.color = (playerId == 1) ? p1Color : p2Color;
 
@@ -81,8 +65,6 @@ namespace CoinRush.Game
             GameManager.Instance.OnPowerupAck -= OnPowerupAckReceived;
         }
 
-        // Update
-
         void Update()
         {
             if (!isLocalPlayer)
@@ -91,11 +73,10 @@ namespace CoinRush.Game
                 return;
             }
 
-            // Stun countdown
             if (_stunTimer > 0f)
             {
                 _stunTimer -= Time.deltaTime;
-                return; // no input while stunned
+                return;
             }
 
             HandleMovementInput();
@@ -105,7 +86,6 @@ namespace CoinRush.Game
         {
             if (!isLocalPlayer) return;
 
-            // Throttled position broadcast
             _inputTimer += Time.fixedDeltaTime;
             if (_inputTimer >= INPUT_RATE)
             {
@@ -113,8 +93,6 @@ namespace CoinRush.Game
                 SendPositionUpdate();
             }
         }
-
-        // Input handling
 
         private void HandleMovementInput()
         {
@@ -124,7 +102,6 @@ namespace CoinRush.Game
             if (spriteRenderer != null && h != 0f)
                 spriteRenderer.flipX = (h < 0f);
 
-            // Ground check
             if (groundCheckPoint != null)
                 _isGrounded = Physics2D.OverlapCircle(groundCheckPoint.position, groundCheckRadius, groundLayer);
 
@@ -151,11 +128,8 @@ namespace CoinRush.Game
             });
         }
 
-        // Remote player interpolation
-
         private void OnRemoteInputReceived(InputMessage msg)
         {
-            // Only apply to the OTHER player; also discard out-of-order packets
             if (msg.playerId == playerId || msg.seq <= _lastRemoteSeq) return;
             _lastRemoteSeq    = msg.seq;
             _remoteTargetPos  = new Vector2(msg.x, msg.y);
@@ -169,8 +143,6 @@ namespace CoinRush.Game
             transform.position = Vector2.Lerp(transform.position, _remoteTargetPos, Time.deltaTime * 15f);
         }
 
-        // Power-up effects
-
         private void OnPowerupAckReceived(PowerupAckMessage ack)
         {
             if (!isLocalPlayer) return;
@@ -182,7 +154,6 @@ namespace CoinRush.Game
                     break;
 
                 case "STUN" when ack.collectedBy != playerId:
-                    // The OTHER player collected a stun -> we are stunned
                     ApplyStun(2f);
                     break;
             }
@@ -203,7 +174,6 @@ namespace CoinRush.Game
             _rb.linearVelocity = Vector2.zero;
         }
 
-        // Gizmo for ground check
         void OnDrawGizmosSelected()
         {
             if (groundCheckPoint == null) return;
@@ -212,3 +182,4 @@ namespace CoinRush.Game
         }
     }
 }
+

@@ -6,13 +6,6 @@ using CoinRush.Game;
 
 namespace CoinRush.UI
 {
-    /// <summary>
-    /// Manages the LobbyScene UI: Host / Join buttons, IP display, and the
-    /// connect input fields. Drives NetworkManager and GameManager to kick
-    /// off the game when both players are ready.
-    ///
-    /// All text fields use TextMeshPro (TMP_Text / TMP_InputField).
-    /// </summary>
     public class LobbyManager : MonoBehaviour
     {
         [Header("Main Buttons")]
@@ -56,8 +49,6 @@ namespace CoinRush.UI
             if (NetworkManager.Instance != null)
                 NetworkManager.Instance.OnMessageReceived -= OnNetworkMessage;
         }
-
-        // Host flow
 
         private void OnHostClicked()
         {
@@ -136,8 +127,6 @@ namespace CoinRush.UI
             NetworkManager.Instance.StartClient(ip, port);
         }
 
-        // Network message handler
-
         private void OnNetworkMessage(string json)
         {
             var baseMsg = JsonUtility.FromJson<BaseMessage>(json);
@@ -180,8 +169,6 @@ namespace CoinRush.UI
 
         private void HostBeginGame() => GameManager.Instance.HostStartGame();
 
-        // Helpers
-
         private void SetHostStatus(string msg)
         {
             if (hostStatusText != null) hostStatusText.text = msg;
@@ -200,3 +187,4 @@ namespace CoinRush.UI
         }
     }
 }
+

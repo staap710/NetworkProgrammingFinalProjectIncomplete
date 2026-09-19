@@ -1,15 +1,8 @@
-﻿using UnityEngine;
+using UnityEngine;
 using CoinRush.Networking;
 
 namespace CoinRush.Game
 {
-    /// <summary>
-    /// Attached to each power-up prefab.
-    ///
-    /// Works the same pattern as Coin:
-    ///   - Local player touches it -> HOST routes directly, CLIENT sends over network.
-    ///   - Destroys itself on POWERUP_ACK.
-    /// </summary>
     public class Powerup : MonoBehaviour
     {
         [HideInInspector] public int    powerupId;

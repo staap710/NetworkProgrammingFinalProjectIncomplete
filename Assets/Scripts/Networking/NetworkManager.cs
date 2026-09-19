@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
@@ -9,32 +9,17 @@ using UnityEngine;
 
 namespace CoinRush.Networking
 {
-    /// <summary>
-    /// Manages the raw TCP P2P connection.
-    ///
-    /// One player acts as HOST  -> calls StartHost()  -> opens a TcpListener.
-    /// The other acts as CLIENT -> calls StartClient() -> connects to the host.
-    ///
-    /// All sending is synchronous (tiny JSON lines).
-    /// All receiving runs on a background thread and enqueues messages so they
-    /// can be safely dispatched on the Unity main thread in Update().
-    /// </summary>
     public class NetworkManager : MonoBehaviour
     {
-        // Singleton
         public static NetworkManager Instance { get; private set; }
 
-        // Public state
         public bool IsHost      { get; private set; }
         public bool IsConnected { get; private set; }
 
-        // Events (always raised on the main thread)
-        /// <summary>Fired when a raw JSON message string arrives.</summary>
         public event Action<string> OnMessageReceived;
 
         public const int DEFAULT_PORT = 7777;
 
-        // Internal marker strings (never sent over the wire)
         public const string MSG_CONNECTED      = "{\"type\":\"__CONNECTED__\"}";
         public const string MSG_CONNECT_FAILED = "{\"type\":\"__CONNECT_FAILED__\"}";
         public const string MSG_DISCONNECTED   = "{\"type\":\"__DISCONNECTED__\"}";
@@ -44,10 +29,7 @@ namespace CoinRush.Networking
         private NetworkStream _stream;
         private Thread        _receiveThread;
 
-        // Thread-safe queue; drained on the Unity main thread in Update()
         private readonly ConcurrentQueue<string> _incoming = new ConcurrentQueue<string>();
-
-        // Lifecycle
 
         void Awake()
         {
@@ -65,9 +47,6 @@ namespace CoinRush.Networking
         void OnDestroy()        => Disconnect();
         void OnApplicationQuit() => Disconnect();
 
-        // Public API
-
-        /// <summary>Open a listener and wait for one client to connect.</summary>
         public void StartHost(int port = DEFAULT_PORT)
         {
             IsHost = true;
@@ -80,7 +59,7 @@ namespace CoinRush.Networking
                 try
                 {
                     _tcpClient       = _listener.AcceptTcpClient();
-                    _tcpClient.NoDelay = true;   // minimise latency
+                    _tcpClient.NoDelay = true;
                     _stream    = _tcpClient.GetStream();
                     IsConnected = true;
                     _incoming.Enqueue(MSG_CONNECTED);
@@ -95,7 +74,6 @@ namespace CoinRush.Networking
             t.Start();
         }
 
-        /// <summary>Connect to a host by IP and port.</summary>
         public void StartClient(string ip, int port = DEFAULT_PORT)
         {
             IsHost = false;
@@ -120,11 +98,9 @@ namespace CoinRush.Networking
             t.Start();
         }
 
-        /// <summary>Serialise <paramref name="msg"/> to JSON and send it.</summary>
         public void Send<T>(T msg) where T : BaseMessage
             => SendRaw(JsonUtility.ToJson(msg));
 
-        /// <summary>Send a raw JSON string (must not contain newlines).</summary>
         public void SendRaw(string json)
         {
             if (_stream == null || !IsConnected) return;
@@ -140,7 +116,6 @@ namespace CoinRush.Networking
             }
         }
 
-        /// <summary>Close the socket gracefully.</summary>
         public void Disconnect()
         {
             IsConnected = false;
@@ -152,7 +127,6 @@ namespace CoinRush.Networking
             _listener  = null;
         }
 
-        /// <summary>Returns the first non-loopback IPv4 address of this machine.</summary>
         public string GetLocalIP()
         {
             try
@@ -167,15 +141,12 @@ namespace CoinRush.Networking
             return "127.0.0.1";
         }
 
-        // Private helpers
-
         private void BeginReceiving()
         {
             _receiveThread = new Thread(ReceiveLoop) { IsBackground = true };
             _receiveThread.Start();
         }
 
-        /// <summary>Reads newline-delimited JSON from the stream on a background thread.</summary>
         private void ReceiveLoop()
         {
             try
@@ -184,7 +155,7 @@ namespace CoinRush.Networking
                 while (IsConnected)
                 {
                     string line = reader.ReadLine();
-                    if (line == null) break;   // clean close
+                    if (line == null) break;
                     if (!string.IsNullOrWhiteSpace(line))
                         _incoming.Enqueue(line);
                 }
@@ -202,3 +173,4 @@ namespace CoinRush.Networking
         }
     }
 }
+

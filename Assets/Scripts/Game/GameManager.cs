@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -6,59 +6,40 @@ using CoinRush.Networking;
 
 namespace CoinRush.Game
 {
-    /// <summary>
-    /// Central game-state manager (DontDestroyOnLoad).
-    ///
-    /// Responsibilities:
-    ///   - Parses every incoming JSON message and routes it to the right subsystem.
-    ///   - HOST: drives the countdown timer, arbitrates coin/powerup races,
-    ///           broadcasts SCORE_UPDATE and GAME_OVER, triggers scene loads.
-    ///   - CLIENT: mirrors authoritative state received from the host.
-    ///   - Stores PendingStartMessage so GameScene objects can read it on Start().
-    ///   - Stores LastGameResult so ResultScene can display the outcome.
-    /// </summary>
     public class GameManager : MonoBehaviour
     {
-        // Singleton
         public static GameManager Instance { get; private set; }
 
-        // Inspector tweaks
         [Header("Game Settings")]
         public int gameDurationSeconds = 90;
         public int coinCount = 20;
 
-        // Coin spawn bounds (used by host to generate positions)
         [Header("Coin Spawn Area")]
         public float coinAreaMinX = -8f;
         public float coinAreaMaxX =  8f;
         public float coinAreaMinY = -1f;
         public float coinAreaMaxY =  4f;
 
-        // Runtime read-only state
         public int   LocalPlayerId   { get; private set; }
         public int   P1Score         { get; private set; }
         public int   P2Score         { get; private set; }
         public float TimeRemaining   { get; private set; }
         public bool  GameRunning     { get; private set; }
 
-        // Shared data written before GameScene loads
         public StartMessage  PendingStartMessage { get; private set; }
         public GameOverMessage LastGameResult    { get; private set; }
 
-        // Events raised on the main thread
-        public event Action<int, int>          OnScoreUpdated;   // (p1, p2)
-        public event Action<float>             OnTimerUpdated;   // seconds remaining
+        public event Action<int, int>          OnScoreUpdated;
+        public event Action<float>             OnTimerUpdated;
         public event Action<GameOverMessage>   OnGameOver;
         public event Action<InputMessage>      OnRemoteInput;
         public event Action<CoinAckMessage>    OnCoinAck;
         public event Action<PowerupAckMessage> OnPowerupAck;
         public event Action<PowerupSpawnMessage> OnPowerupSpawn;
 
-        // Host-side arbitration arrays
         private int[] _coinClaimedBy;
         private int[] _powerupClaimedBy;
 
-        // Host-side score broadcast timer
         private float _scoreBroadcastTimer;
         private const float SCORE_BROADCAST_INTERVAL = 1f;
 
@@ -108,14 +89,8 @@ namespace CoinRush.Game
             }
         }
 
-        // Public helpers
-
         public void SetLocalPlayerId(int id) => LocalPlayerId = id;
 
-        /// <summary>
-        /// Called by LobbyManager on the HOST after the client's HELLO arrives.
-        /// Generates coin positions, sends START, then loads GameScene.
-        /// </summary>
         public void HostStartGame()
         {
             float[] xs = new float[coinCount];
@@ -135,39 +110,22 @@ namespace CoinRush.Game
                 map             = 1
             };
 
-            // Send to client first, then start locally
             NetworkManager.Instance.Send(msg);
             InitGameState(msg);
         }
 
-        // ── Coin arbitration (public so Coin.cs can call on host) ─────────────
-
         public void InitCoinArbitration(int count)
             => _coinClaimedBy = new int[count];
 
-        /// <summary>
-        /// Called when the LOCAL player (host) touches a coin.
-        /// Routes directly through arbitration without going over the wire.
-        /// </summary>
         public void LocalCoinCollected(int coinId, int playerId)
             => ArbiterHandleCoin(new CoinCollectedMessage { coinId = coinId, playerId = playerId });
-
-        // ── Powerup arbitration (public so Powerup.cs can call on host) ───────
 
         public void InitPowerupArbitration(int count)
             => _powerupClaimedBy = new int[count];
 
-        /// <summary>
-        /// Called when the LOCAL player (host) touches a power-up.
-        /// Routes directly through arbitration without going over the wire.
-        /// </summary>
         public void LocalPowerupCollected(int powerupId, int playerId)
             => ArbiterHandlePowerup(new PowerupCollectedMessage { powerupId = powerupId, playerId = playerId });
 
-        /// <summary>
-        /// Called by PowerupSpawner after resolving the power-up type.
-        /// Sends POWERUP_ACK to client and fires the local event.
-        /// </summary>
         public void PublishPowerupAck(PowerupAckMessage ack)
         {
             NetworkManager.Instance.Send(ack);
@@ -181,7 +139,6 @@ namespace CoinRush.Game
             OnScoreUpdated?.Invoke(P1Score, P2Score);
         }
 
-        /// <summary>Reset state for a new game session (called before returning to Lobby).</summary>
         public void ResetGame()
         {
             P1Score            = 0;
@@ -193,8 +150,6 @@ namespace CoinRush.Game
             _coinClaimedBy     = null;
             _powerupClaimedBy  = null;
         }
-
-        // Private helpers
 
         private void InitGameState(StartMessage msg)
         {
@@ -237,20 +192,16 @@ namespace CoinRush.Game
             SceneManager.LoadScene("ResultScene");
         }
 
-        // Coin arbitration logic
-
         private void ArbiterHandleCoin(CoinCollectedMessage req)
         {
             if (_coinClaimedBy == null || req.coinId >= _coinClaimedBy.Length) return;
 
-            // If not yet claimed, award it
             if (_coinClaimedBy[req.coinId] == 0)
             {
                 _coinClaimedBy[req.coinId] = req.playerId;
                 AddScore(req.playerId);
             }
 
-            // Always ACK so both machines remove the coin
             var ack = new CoinAckMessage
             {
                 coinId      = req.coinId,
@@ -261,21 +212,16 @@ namespace CoinRush.Game
             OnCoinAck?.Invoke(ack);
         }
 
-        // Powerup arbitration logic
-
         private void ArbiterHandlePowerup(PowerupCollectedMessage req)
         {
             if (_powerupClaimedBy == null || req.powerupId >= _powerupClaimedBy.Length) return;
-            if (_powerupClaimedBy[req.powerupId] != 0) return; // already taken
+            if (_powerupClaimedBy[req.powerupId] != 0) return;
 
             _powerupClaimedBy[req.powerupId] = req.playerId;
 
-            // Ask PowerupSpawner to finalise (it knows the type)
             var spawner = FindFirstObjectByType<PowerupSpawner>();
             spawner?.HostConfirmPowerup(req.powerupId, req.playerId);
         }
-
-        // Main message router
 
         private void HandleMessage(string json)
         {
@@ -284,12 +230,9 @@ namespace CoinRush.Game
 
             switch (baseMsg.type)
             {
-                // ── Lobby handshake ───────────────────────────────────────────
                 case "HELLO":
-                    // Handled by LobbyManager; ignore here
                     break;
 
-                // ── Game start ────────────────────────────────────────────────
                 case "START":
                     if (NetworkManager.Instance != null && !NetworkManager.Instance.IsHost)
                     {
@@ -298,12 +241,10 @@ namespace CoinRush.Game
                     }
                     break;
 
-                // ── Player position sync ──────────────────────────────────────
                 case "INPUT":
                     OnRemoteInput?.Invoke(JsonUtility.FromJson<InputMessage>(json));
                     break;
 
-                // ── Coin flow ─────────────────────────────────────────────────
                 case "COIN_COLLECTED":
                     if (NetworkManager.Instance != null && NetworkManager.Instance.IsHost)
                         ArbiterHandleCoin(JsonUtility.FromJson<CoinCollectedMessage>(json));
@@ -313,7 +254,6 @@ namespace CoinRush.Game
                     OnCoinAck?.Invoke(JsonUtility.FromJson<CoinAckMessage>(json));
                     break;
 
-                // ── Score / game-over ─────────────────────────────────────────
                 case "SCORE_UPDATE":
                     if (NetworkManager.Instance != null && !NetworkManager.Instance.IsHost)
                     {
@@ -328,7 +268,6 @@ namespace CoinRush.Game
                     FinaliseGameOver(JsonUtility.FromJson<GameOverMessage>(json));
                     break;
 
-                // ── Powerup flow ──────────────────────────────────────────────
                 case "POWERUP_COLLECTED":
                     if (NetworkManager.Instance != null && NetworkManager.Instance.IsHost)
                         ArbiterHandlePowerup(JsonUtility.FromJson<PowerupCollectedMessage>(json));
@@ -342,7 +281,6 @@ namespace CoinRush.Game
                     OnPowerupSpawn?.Invoke(JsonUtility.FromJson<PowerupSpawnMessage>(json));
                     break;
 
-                // ── Internal markers ──────────────────────────────────────────
                 case "__DISCONNECTED__":
                     Debug.Log("[GameManager] Remote player disconnected.");
                     GameRunning = false;
@@ -351,3 +289,4 @@ namespace CoinRush.Game
         }
     }
 }
+

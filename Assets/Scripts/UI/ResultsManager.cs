@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using UnityEngine.SceneManagement;
@@ -7,10 +7,6 @@ using CoinRush.Game;
 
 namespace CoinRush.UI
 {
-    /// <summary>
-    /// Shown in ResultScene. Reads GameManager.LastGameResult on Start().
-    /// All text fields use TextMeshPro (TMP_Text).
-    /// </summary>
     public class ResultsManager : MonoBehaviour
     {
         [Header("Result Text")]

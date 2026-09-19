@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using CoinRush.Networking;
@@ -6,9 +6,6 @@ using CoinRush.Game;
 
 namespace CoinRush.UI
 {
-    /// <summary>
-    /// In-game heads-up display. All text fields use TextMeshPro (TMP_Text).
-    /// </summary>
     public class HUDManager : MonoBehaviour
     {
         [Header("Scores")]
@@ -21,9 +18,9 @@ namespace CoinRush.UI
         public TMP_Text timerText;
 
         [Header("Notifications")]
-        public GameObject stunOverlay;      // semi-transparent red panel
-        public GameObject speedOverlay;     // semi-transparent cyan panel
-        public TMP_Text   notificationText; // brief popup message
+        public GameObject stunOverlay;
+        public GameObject speedOverlay;
+        public TMP_Text   notificationText;
 
         void Start()
         {
@@ -53,7 +50,6 @@ namespace CoinRush.UI
             GameManager.Instance.OnPowerupAck    -= OnPowerupAck;
         }
 
-        // Callbacks
 
         private void UpdateScores(int p1, int p2)
         {
